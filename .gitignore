@@ -259,5 +259,4 @@ FakesAssemblies/
 
 # Visual Studio
 .vs/
-Server/Server/logs/
-Server/Server/ServerLogs/
+MobileRPG3D-Server/MobileRPG3D-Server/Logger/
