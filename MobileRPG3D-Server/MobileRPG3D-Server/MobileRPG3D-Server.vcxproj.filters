@@ -23,5 +23,8 @@
     <ClInclude Include="SettingData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Exover.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
