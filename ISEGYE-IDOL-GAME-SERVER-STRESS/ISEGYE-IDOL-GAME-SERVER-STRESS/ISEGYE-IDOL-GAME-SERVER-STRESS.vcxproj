@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{4a390033-889d-40df-a769-c3c9c9021d0d}</ProjectGuid>
-    <RootNamespace>MobileRPG3DServer</RootNamespace>
+    <ProjectGuid>{7d359788-7f3c-4a1b-8a12-2281f6b5500e}</ProjectGuid>
+    <RootNamespace>ISEGYEIDOLGAMESERVERSTRESS</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -43,16 +43,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
-    <EnableUnitySupport>true</EnableUnitySupport>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>MultiByte</CharacterSet>
-    <EnableUnitySupport>true</EnableUnitySupport>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -72,12 +70,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LibraryPath>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\Build\Release;D:\Dev\C++\PersonalCppLibrary\x64\Release;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LibraryPath>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\Build\Release;D:\Dev\C++\PersonalCppLibrary\x64\Release;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -112,13 +104,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <MaxFilesInUnityFile>10</MaxFilesInUnityFile>
-      <AdditionalIncludeDirectories>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\include;D:\Dev\C++\PersonalCppLibrary\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\include;D:\Dev\C++\PersonalCppLibrary\include;D:\Dev\GitHub\ISEGYE-IDOL-GAME-SERVER\Server-Library\Header;D:\Dev\GitHub\ISEGYE-IDOL-GAME-SERVER\Server\Server;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>PersonalCppLibrary.lib;spdlog.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\Dev\C++\PersonalCppLibrary\x64\Release;D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\Build\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>spdlog.lib;PersonalCppLibrary.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -129,31 +121,23 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <MaxFilesInUnityFile>10</MaxFilesInUnityFile>
-      <AdditionalIncludeDirectories>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\include;D:\Dev\C++\PersonalCppLibrary\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\include;D:\Dev\C++\PersonalCppLibrary\include;D:\Dev\GitHub\ISEGYE-IDOL-GAME-SERVER\Server-Library\Header;D:\Dev\GitHub\ISEGYE-IDOL-GAME-SERVER\Server\Server;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>PersonalCppLibrary.lib;spdlog.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\Dev\C++\PersonalCppLibrary\x64\Release;D:\Dev\C++\spdlog-1.10.0\spdlog-1.10.0\Build\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>spdlog.lib;PersonalCppLibrary.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Client.cpp" />
-    <ClCompile Include="Global.cpp" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Server.cpp" />
+    <ClCompile Include="ISEGYE-IDOL-GAME-SERVER-STRESS.cpp" />
+    <ClCompile Include="StressClient.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Client.h" />
-    <ClInclude Include="Exover.h" />
-    <ClInclude Include="Global.h" />
-    <ClInclude Include="PacketStruct.h" />
-    <ClInclude Include="Server.h" />
-    <ClInclude Include="SettingData.h" />
-    <ClInclude Include="Vector3.h" />
+    <ClInclude Include="StressClient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -15,4 +15,6 @@ private:
 	static void WorkerThread();
 	static void PacketConstruct(int userID, int ioByteLength);
 	static void ProcessPacket(int userID, char* buf);
+	static void SendPacket(size_t networkID, void* pPacket);
+	static void SendPacket(size_t networkID, void* pPacket, size_t length);
 };

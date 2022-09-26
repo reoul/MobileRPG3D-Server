@@ -10,6 +10,7 @@ Client::Client()
 	, mPacketBuf{}
 	, mIsAlive(false)
 	, mStatus(ESocketStatus::FREE)
+	, mPosition()
 {
 	mName[0] = '\0';
 }
@@ -22,4 +23,5 @@ void Client::Init()
 	mIsAlive = false;
 	mName[0] = '\0';
 	mStatus = ESocketStatus::FREE;
+	mPosition = { 0,0,0 };
 }

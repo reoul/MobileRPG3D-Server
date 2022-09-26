@@ -6,6 +6,7 @@
 #include "Global.h"
 #include "SettingData.h"
 #include "PacketStruct.h"
+#include "reoul/MemoryStream.h"
 
 using namespace std;
 
@@ -28,8 +29,7 @@ void Server::Start()
 		Log("Listen 소켓 생성 실패");
 	}
 
-	sockaddr_in serverAddr;
-	memset(&serverAddr, 0, sizeof(serverAddr));
+	sockaddr_in serverAddr = {};
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(SERVER_PORT);
 	serverAddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
@@ -57,23 +57,19 @@ void Server::Start()
 	accept_over.type = EOperationType::Accept;
 	::AcceptEx(sListenSocket, clientSocket, accept_over.io_buf, NULL, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16,
 		NULL, &accept_over.over);
+
 	Log("서버 시작");
 
 	vector<thread> workerThreads;
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-	for (int i = 0; i < si.dwNumberOfProcessors * 2; ++i)
+	for (size_t i = 0; i < thread::hardware_concurrency(); ++i)
 	{
 		workerThreads.emplace_back(WorkerThread);
 	}
-	Log("{0}개의 쓰레드 작동", si.dwNumberOfProcessors * 2);
+	Log("{0}개의 쓰레드 작동", thread::hardware_concurrency());
 
-	string str;
 	while (true)
 	{
-		//g_roomManager.TrySendBattleInfo();
-
-		if (true)
+		if (!g_bIsRunningServer)
 		{
 			break;
 		}
@@ -165,14 +161,14 @@ void Server::WorkerThread()
 			break;
 		case EOperationType::Accept:			//CreateIoCompletionPort으로 클라소켓 iocp에 등록 -> 초기화 -> recv -> accept 다시(다중접속)
 		{
-			int userID = -1;
+			int networkID = -1;
 			for (int i = 0; i < MAX_USER; ++i)
 			{
 				lock_guard<mutex> gl{ g_clients[i].GetMutex() }; //이렇게 하면 unlock이 필요 없다. 이 블록에서 빠져나갈때 unlock을 자동으로 해준다.
 				if (ESocketStatus::FREE == g_clients[i].GetStatus())
 				{
 					g_clients[i].SetStatus(ESocketStatus::ALLOCATED);
-					userID = i;
+					networkID = i;
 					break;
 				}
 			}
@@ -180,35 +176,70 @@ void Server::WorkerThread()
 			//main에서 소켓을 worker스레드로 옮겨오기 위해 listen소켓은 전역변수로, client소켓은 멤버로 가져왔다.
 			SOCKET clientSocket = exover->c_socket;
 
-			if (userID == -1)
+			if (networkID == -1)
 				::closesocket(clientSocket); // send_login_fail_packet();
 			else
 			{
-				const HANDLE result = ::CreateIoCompletionPort(reinterpret_cast<HANDLE>(clientSocket), sIocp, userID, 0);
+				const HANDLE result = ::CreateIoCompletionPort(reinterpret_cast<HANDLE>(clientSocket), sIocp, networkID, 0);
 				if (result == NULL)
 				{
-					LogWarning("{0}번 소켓 IOCP 등록 실패", userID);
+					LogWarning("{0}번 소켓 IOCP 등록 실패", networkID);
 					::closesocket(clientSocket);
 				}
 				else
 				{
-					g_clients[userID].SetPrevSize(0); //이전에 받아둔 조각이 없으니 0
-					g_clients[userID].SetSocket(clientSocket);
+					g_clients[networkID].SetPrevSize(0); //이전에 받아둔 조각이 없으니 0
+					g_clients[networkID].SetSocket(clientSocket);
 
-					ZeroMemory(&g_clients[userID].GetRecvOver().over, sizeof(g_clients[userID].GetRecvOver().over));
-					g_clients[userID].GetRecvOver().type = EOperationType::Recv;
-					g_clients[userID].GetRecvOver().wsabuf.buf = g_clients[userID].GetRecvOver().io_buf;
-					g_clients[userID].GetRecvOver().wsabuf.len = MAX_BUF_SIZE;
-					
+					ZeroMemory(&g_clients[networkID].GetRecvOver().over, sizeof(g_clients[networkID].GetRecvOver().over));
+					g_clients[networkID].GetRecvOver().type = EOperationType::Recv;
+					g_clients[networkID].GetRecvOver().wsabuf.buf = g_clients[networkID].GetRecvOver().io_buf;
+					g_clients[networkID].GetRecvOver().wsabuf.len = MAX_BUF_SIZE;
+
 					// 새 클라이언트에게 서버에 연결되었다고 알림
-					Log("네트워크 {0}번 클라이언트 서버 접속", userID);
-					//sc_connectServerPacket connectServerPacket(userID);
-					//SendPacket(userID, &connectServerPacket);
+					Log("네트워크 {0}번 클라이언트 서버 접속", networkID);
+					sc_connectServerPacket connectServerPacket(networkID, g_clients[networkID].GetPosition());
+					int16_t curClientCount = 0;
+					WriteMemoryStream writeStream;
 
-					g_clients[userID].SetStatus(ESocketStatus::ACTIVE);
+					for (const Client& c : g_clients)
+					{
+						if (c.GetStatus() == ESocketStatus::ACTIVE)
+							++curClientCount;
+					}
+					--curClientCount;	// 자신 카운팅 제외
+
+					writeStream.Write(static_cast<int16_t>(sizeof(int16_t) + sizeof(byte) + 
+							sizeof(int32_t) * curClientCount + sizeof(Vector3) * curClientCount));
+
+					writeStream.Write(EPacketType::sc_connClientsInfo);
+					writeStream.Write(curClientCount);
+
+					for (int32_t i = 0; i < networkID; ++i)
+					{
+						if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
+						{
+							SendPacket(i, &connectServerPacket);
+							writeStream.Write(i);
+							writeStream.Write(g_clients[i].GetPosition());
+						}
+					}
+					for (int32_t i = networkID + 1; i < MAX_USER; ++i)
+					{
+						if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
+						{
+							SendPacket(i, &connectServerPacket);
+							writeStream.Write(i);
+							writeStream.Write(g_clients[i].GetPosition());
+						}
+					}
+
+					SendPacket(networkID, const_cast<char*>(writeStream.GetBufferPtr()));
+
+					g_clients[networkID].SetStatus(ESocketStatus::ACTIVE);
 
 					DWORD flags = 0;
-					::WSARecv(clientSocket, &g_clients[userID].GetRecvOver().wsabuf, 1, NULL, &flags, &g_clients[userID].GetRecvOver().over, NULL);
+					::WSARecv(clientSocket, &g_clients[networkID].GetRecvOver().wsabuf, 1, NULL, &flags, &g_clients[networkID].GetRecvOver().over, NULL);
 				}
 			}
 			//소켓 초기화 후 다시 accept
@@ -283,58 +314,12 @@ void Server::ProcessPacket(int userID, char* buf)
 {
 	switch (static_cast<EPacketType>(buf[2])) //[0,1]은 size
 	{
-	//case EPacketType::cs_startMatching:
-	//{
-	//	const cs_startMatchingPacket* pPacket = reinterpret_cast<cs_startMatchingPacket*>(buf);
-	//	wcscpy(g_clients[pPacket->networkID].GetName(), pPacket->name);
-	//	g_clients[pPacket->networkID].GetName()[MAX_USER_NAME_LENGTH - 1] = '\0';
+		//case EPacketType::cs_startMatching:
+		//{
+		//	const cs_startMatchingPacket* pPacket = reinterpret_cast<cs_startMatchingPacket*>(buf);
+		//	wcscpy(g_clients[pPacket->networkID].GetName(), pPacket->name);
+		//	g_clients[pPacket->networkID].GetName()[MAX_USER_NAME_LENGTH - 1] = '\0';
 
-	//	const Room* room = nullptr;
-	//	{
-	//		lock_guard<mutex> lg(g_serverQueue.GetMutex());
-	//		g_serverQueue.AddClient(&g_clients[pPacket->networkID]);
-	//		room = g_serverQueue.TryCreateRoomOrNullPtr();
-	//	}
-
-	//	if (room != nullptr) // 방을 만들 수 있다면
-	//	{
-	//		sc_connectRoomPacket connectRoomPacket(*room);
-	//		room->SendPacketToAllClients(&connectRoomPacket);
-	//	}
-	//}
-	//break;
-	//case EPacketType::cs_sc_addNewItem:
-	//{
-	//	cs_sc_AddNewItemPacket* pPacket = reinterpret_cast<cs_sc_AddNewItemPacket*>(buf);
-	//	Client& client = g_clients[pPacket->networkID];
-	//	client.AddItem(pPacket->itemCode);
-	//	Log("[cs_sc_addNewItem] 네트워크 {0}번 클라이언트 {1}번 아이템 추가", pPacket->networkID, pPacket->itemCode);
-	//	client.SendPacketInAnotherRoomClients(pPacket);
-	//}
-	//break;
-	//case EPacketType::cs_sc_changeCharacter:
-	//{
-	//	cs_sc_changeCharacterPacket* pPacket = reinterpret_cast<cs_sc_changeCharacterPacket*>(buf);
-	//	Log("[cs_sc_changeCharacter] 네트워크 {0}번 클라이언트 캐릭터 {1}번 교체", pPacket->networkID, static_cast<int>(pPacket->characterType));
-	//	g_clients[pPacket->networkID].SendPacketInAnotherRoomClients(pPacket);
-	//}
-	//break;
-	//case EPacketType::cs_sc_changeItemSlot:
-	//{
-	//	cs_sc_changeItemSlotPacket* pPacket = reinterpret_cast<cs_sc_changeItemSlotPacket*>(buf);
-	//	g_clients[pPacket->networkID].SwapItem(pPacket->slot1, pPacket->slot2);
-	//	Log("[cs_sc_changeItemSlot] 네트워크 {0}번 클라이언트 아이템 슬롯 {1} <-> {2} 교체", pPacket->networkID, pPacket->slot1, pPacket->slot2);
-	//	g_clients[pPacket->networkID].SendPacketInAllRoomClients(pPacket);
-	//}
-	//break;
-	//case EPacketType::cs_battleReady:
-	//{
-	//	const cs_battleReadyPacket* pPacket = reinterpret_cast<cs_battleReadyPacket*>(buf);
-	//	g_clients[pPacket->networkID].TrySetDefaultUsingItem();
-	//	g_clients[pPacket->networkID].GetRoomPtr()->BattleReady();
-	//	Log("[cs_battleReady] 네트워크 {0}번 클라이언트 전투 준비 완료", pPacket->networkID);
-	//}
-	//break;
 	default:
 		LogWarning("미정의 패킷 받음");
 		DebugBreak();
@@ -342,3 +327,40 @@ void Server::ProcessPacket(int userID, char* buf)
 		break;
 	}
 }
+
+void Server::SendPacket(size_t networkID, void* pPacket)
+{
+	char* buf = reinterpret_cast<char*>(pPacket);
+
+	const Client& client = g_clients[networkID];
+
+	//WSASend의 두번째 인자의 over는 recv용이라 쓰면 안된다. 새로 만들어야 한다.
+	Exover* exover = new Exover;
+	exover->type = EOperationType::Send;
+	ZeroMemory(&exover->over, sizeof(exover->over));
+	exover->wsabuf.buf = exover->io_buf;
+	const ULONG length = reinterpret_cast<uint16_t*>(buf)[0];
+	exover->wsabuf.len = length;
+	memcpy(exover->io_buf, buf, length);
+
+	::WSASend(client.GetSocket(), &exover->wsabuf, 1, NULL, 0, &exover->over, NULL);
+}
+
+void Server::SendPacket(size_t networkID, void* pPacket, size_t length)
+{
+	char* buf = reinterpret_cast<char*>(pPacket);
+
+	const Client& client = g_clients[networkID];
+
+	//WSASend의 두번째 인자의 over는 recv용이라 쓰면 안된다. 새로 만들어야 한다.
+	Exover* exover = new Exover;
+	exover->type = EOperationType::Send;
+	ZeroMemory(&exover->over, sizeof(exover->over));
+	exover->wsabuf.buf = exover->io_buf;
+	const ULONG length = reinterpret_cast<uint16_t*>(buf)[0];
+	exover->wsabuf.len = length;
+	memcpy(exover->io_buf, buf, length);
+
+	::WSASend(client.GetSocket(), &exover->wsabuf, 1, NULL, 0, &exover->over, NULL);
+}
+

@@ -3,6 +3,7 @@
 #include <WinSock2.h>
 
 #include "Exover.h"
+#include "Vector3.h"
 
 using namespace std;
 
@@ -26,6 +27,8 @@ public:
 	wchar_t*				GetName();
 	const wchar_t*			GetName() const;
 	std::mutex&				GetMutex();
+	const Vector3&			GetPosition() const;
+	void					SetPosition(Vector3 vec);
 private:
 	std::mutex				mLock;
 	SOCKET					mSocket;
@@ -36,6 +39,7 @@ private:
 	bool					mIsAlive;						// 플레이 도중에 살아있는지(HP가 0이 아닌경우)
 	ESocketStatus			mStatus;						// 접속했나 안했나
 	wchar_t					mName[MAX_USER_NAME_LENGTH];	// 플레이어 이름
+	Vector3					mPosition;						// 플레이어 위치
 };
 
 inline const SOCKET& Client::GetSocket() const
@@ -107,3 +111,15 @@ inline std::mutex& Client::GetMutex()
 {
 	return mLock;
 }
+
+inline const Vector3& Client::GetPosition() const
+{
+	return mPosition;
+}
+
+inline void Client::SetPosition(Vector3 vec)
+{
+	mPosition = vec;
+}
+
+
