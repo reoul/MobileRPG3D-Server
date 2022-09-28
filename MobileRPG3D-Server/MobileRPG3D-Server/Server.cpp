@@ -6,7 +6,7 @@
 #include "Global.h"
 #include "SettingData.h"
 #include "PacketStruct.h"
-#include "reoul/MemoryStream.h"
+#include <reoul/MemoryStream.h>
 
 using namespace std;
 
@@ -58,6 +58,11 @@ void Server::Start()
 	::AcceptEx(sListenSocket, clientSocket, accept_over.io_buf, NULL, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16,
 		NULL, &accept_over.over);
 
+	for (int i = 0; i < MAX_USER; ++i)
+	{
+		g_clients[i].SetNetworkID(i);
+	}
+
 	Log("서버 시작");
 
 	vector<thread> workerThreads;
@@ -97,9 +102,13 @@ void Server::Disconnect(int userID)
 
 		::closesocket(g_clients[userID].GetSocket());
 
+		cs_sc_disconnectServerPacket packet(userID);
+		SendPacketToConnectClients(&packet);
+
 		wchar_t name[MAX_USER_NAME_LENGTH];
 		wcscpy(name, g_clients[userID].GetName());
 		g_clients[userID].Init();
+		g_clients[userID].SetStatus(ESocketStatus::FREE);
 	}
 
 	Log("네트워크 {0}번 클라이언트 서버 접속 해제", userID);
@@ -198,45 +207,11 @@ void Server::WorkerThread()
 
 					// 새 클라이언트에게 서버에 연결되었다고 알림
 					Log("네트워크 {0}번 클라이언트 서버 접속", networkID);
-					sc_connectServerPacket connectServerPacket(networkID, g_clients[networkID].GetPosition());
-					int16_t curClientCount = 0;
-					WriteMemoryStream writeStream;
-
-					for (const Client& c : g_clients)
-					{
-						if (c.GetStatus() == ESocketStatus::ACTIVE)
-							++curClientCount;
-					}
-					--curClientCount;	// 자신 카운팅 제외
-
-					writeStream.Write(static_cast<int16_t>(sizeof(int16_t) + sizeof(byte) + 
-							sizeof(int32_t) * curClientCount + sizeof(Vector3) * curClientCount));
-
-					writeStream.Write(EPacketType::sc_connClientsInfo);
-					writeStream.Write(curClientCount);
-
-					for (int32_t i = 0; i < networkID; ++i)
-					{
-						if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
-						{
-							SendPacket(i, &connectServerPacket);
-							writeStream.Write(i);
-							writeStream.Write(g_clients[i].GetPosition());
-						}
-					}
-					for (int32_t i = networkID + 1; i < MAX_USER; ++i)
-					{
-						if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
-						{
-							SendPacket(i, &connectServerPacket);
-							writeStream.Write(i);
-							writeStream.Write(g_clients[i].GetPosition());
-						}
-					}
-
-					SendPacket(networkID, const_cast<char*>(writeStream.GetBufferPtr()));
 
 					g_clients[networkID].SetStatus(ESocketStatus::ACTIVE);
+
+					sc_connectServerPacket packet(networkID);
+					SendPacket(networkID, &packet);
 
 					DWORD flags = 0;
 					::WSARecv(clientSocket, &g_clients[networkID].GetRecvOver().wsabuf, 1, NULL, &flags, &g_clients[networkID].GetRecvOver().over, NULL);
@@ -319,7 +294,34 @@ void Server::ProcessPacket(int userID, char* buf)
 		//	const cs_startMatchingPacket* pPacket = reinterpret_cast<cs_startMatchingPacket*>(buf);
 		//	wcscpy(g_clients[pPacket->networkID].GetName(), pPacket->name);
 		//	g_clients[pPacket->networkID].GetName()[MAX_USER_NAME_LENGTH - 1] = '\0';
+	case EPacketType::cs_requestConnClientsInfo:
+	{
+		cs_requestConnClientsInfoPacket* pPacket = reinterpret_cast<cs_requestConnClientsInfoPacket*>(buf);
+		Log("현재 접속 클라이언트 목록 요청");
+		g_clients[pPacket->networkID].SetPosition(pPacket->position);
+		sc_connClientsInfo::SendClientsList(pPacket->networkID);
+	}
+	break;
+	case EPacketType::cs_sc_characterMove:
+	{
+		cs_sc_characterMovePacket* pPacket = reinterpret_cast<cs_sc_characterMovePacket*>(buf);
+		g_clients[pPacket->networkID].SetPosition(pPacket->curPosition);
 
+		for (int i = 0; i < pPacket->networkID; ++i)
+		{
+			if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
+				SendPacket(i, pPacket);
+		}
+		for (int i = pPacket->networkID + 1; i < MAX_USER; ++i)
+		{
+			if (g_clients[i].GetStatus() == ESocketStatus::ACTIVE)
+				SendPacket(i, pPacket);
+		}
+		Vector3 pos = pPacket->curPosition;
+		Log("이동 패킷 받음 {0} 번 플레이어 {1}", pPacket->networkID, pPacket->joystickDistance);
+		Log("{0} {1} {2}", pos.x, pos.y, pos.z);
+		break;
+	}
 	default:
 		LogWarning("미정의 패킷 받음");
 		DebugBreak();
@@ -357,10 +359,18 @@ void Server::SendPacket(size_t networkID, void* pPacket, size_t length)
 	exover->type = EOperationType::Send;
 	ZeroMemory(&exover->over, sizeof(exover->over));
 	exover->wsabuf.buf = exover->io_buf;
-	const ULONG length = reinterpret_cast<uint16_t*>(buf)[0];
 	exover->wsabuf.len = length;
 	memcpy(exover->io_buf, buf, length);
 
 	::WSASend(client.GetSocket(), &exover->wsabuf, 1, NULL, 0, &exover->over, NULL);
+}
+
+void Server::SendPacketToConnectClients(void* pPacket)
+{
+	for (Client& c : g_clients)
+	{
+		if (c.GetStatus() == ESocketStatus::ACTIVE)
+			SendPacket(c.GetNetworkID(), pPacket);
+	}
 }
 

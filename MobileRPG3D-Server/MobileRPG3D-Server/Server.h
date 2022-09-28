@@ -10,11 +10,12 @@ public:
 	static HANDLE sIocp;
 	static SOCKET sListenSocket;
 	void Start();
+	static void SendPacket(size_t networkID, void* pPacket);
+	static void SendPacket(size_t networkID, void* pPacket, size_t length);
+	static void SendPacketToConnectClients(void* pPacket);
 private:
 	static void Disconnect(int userID);
 	static void WorkerThread();
 	static void PacketConstruct(int userID, int ioByteLength);
 	static void ProcessPacket(int userID, char* buf);
-	static void SendPacket(size_t networkID, void* pPacket);
-	static void SendPacket(size_t networkID, void* pPacket, size_t length);
 };
